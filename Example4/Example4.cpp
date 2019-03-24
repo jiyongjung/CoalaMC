@@ -3,79 +3,69 @@
 
 #include <math.h>
 
-#define M_PI       3.14159265358979323846   // pi
+#ifndef M_PI
+#define M_PI       3.14159265358979323846
+#endif
 
-// 플레이어 앞으로 distance만큼 떨어진 곳에
-// deltaX, deltaY, deltaZ 만큼의 건물이 만들어질 좌표를 반환한다.
-// (sx, sy, sz) - (ex, sy, ez)
-// sx < ex, sy < ey, sz < ez가 보장된다.
-void getPlayerFrontSpace(int distance, int deltaX, int deltaY, int deltaZ, int* sx, int* sy, int* sz, int* ex, int* ey, int* ez)
+void locateBlockIfAir(BlockID block, int x, int y, int z, bool emptyOnly)
 {
+	if (!emptyOnly || getBlockType(x, y, z) == BLOCK_AIR) {
+
+		locateBlock(block, x, y, z);
+	}
+}
+
+
+void drawLine(BlockID block, int x1, int y1, int z1, int x2, int y2, int z2, bool emptyOnly)
+{
+	int dx = abs(x2 - x1), sx = (x1 < x2) ? 1 : -1;
+	int dz = abs(z2 - z1), sz = (z1 < z2) ? 1 : -1;
+
+	locateBlockIfAir(block, x1, y1, z1, emptyOnly);
+	for (int err = (dx > dz ? dx : -dz) / 2; x1 != x2 || z1 != z2; ) {
+		int e2 = err;
+
+		if (e2 > -dx) { err -= dz; x1 += sx; }
+		if (e2 < dz) { err += dx; z1 += sz; }
+
+		locateBlockIfAir(block, x1, y1, z1, emptyOnly);
+	}
+}
+
+void drawForward(BlockID block, int count, bool emptyOnly)
+{
+
 	int px, py, pz;
 	getPlayerLocation(&px, &py, &pz);
 
-	double dir = getPlayerDirection();		// 현재 플레이어의 방향을 획득한다.
-											// z축을 기준으로 시계방향의 각도
-	double radian = dir * M_PI / 180.;		// 삼각 함수를 사용하기 위해서 RADIAN 값으로 변환한다.
-	int dx = -distance * sin(radian);		// 라인의 끝이 되는 x좌표
-	int dz = distance * cos(radian);		// 라인의 끝이 되는 z좌표
+	double dir = getPlayerDirection();
 
-	if (dx > 0) {
-		*sx = px + dx - deltaX / 2;
-		*ex = *sx + deltaX - 1;
-	}
-	else {
-		*ex = px + dx + deltaX / 2;
-		*sx = *ex - deltaX + 1;
-	}
+	double radian = dir * M_PI / 180.;
 
-	if (dz > 0) {
-		*sz = pz + dz - deltaZ / 2;
-		*ez = *sz + deltaZ - 1;
+	int dx = -count * sin(radian);
+	int dz = count * cos(radian);
+	int ex = count * sin(M_PI / 2 - radian);
+	int ez = count * cos(M_PI / 2 - radian);
+	int fx = dx + ex;
+	int fz = dz + ez;
+	int i;
+	for (i = 0; i < 11; i++) {
+		drawLine(block, px, py + i, pz, px + dx, py + i, pz + dz, emptyOnly);
+		drawLine(block, px, py + i, pz, px + ex, py + i, pz + ez, emptyOnly);
+		drawLine(block, px + dx, py + i, pz + dz, px + fx, py + i, pz + fz, emptyOnly);
+		drawLine(block, px + ex, py + i, pz + ez, px + fx, py + i, pz + fz, emptyOnly);
 	}
-	else {
-		*ez = pz + dz + deltaZ / 2;
-		*sz = *ez - deltaZ + 1;
-	}
+	drawLine(block, px, py + 10, pz, px + fx, py + 10, pz + fz, emptyOnly);
+	drawLine(block, px + ex, py + 10, pz + ez, px + dx, py + 10, pz + dz, emptyOnly);
 
-	*sy = py;
-	*ey = *sy + deltaY - 1;
+
+
+
 }
 
 int main()
 {
-	int sx, sy, sz;
-	int ex, ey, ez;
-
-	const int delta = 9;
-	getPlayerFrontSpace(10, delta, delta, delta/2 + 1, &sx, &sy, &sz, &ex, &ey, &ez);
-
-	printf("(%d, %d, %d) - (%d, %d, %d)\n", sx, sy, sz, ex, ey, ez);
-
 	BlockID diamond = createBlock(BLOCK_DIAMOND);
-	int x, y, z;
-	for (y = 0; y < 3; y++) {
-		for (x = y; x < delta - y; x++) {
-			for (z = y; z < delta - y; z++) {
-				locateBlock(diamond, sx + x, sy + y, sz + z);
-			}
-		}
-	}
-
-	BeaconID beacon = createBeacon();
-	for (x = y; x < delta - y; x++) {
-		for (z = y; z < delta - y; z++) {
-			locateBlock(beacon, sx + x, sy + y - 1, sz + z);
-		}
-	}
-
-	GlassID glass1 = createGlass(COLOR_YELLOW);
-	GlassID glass2 = createGlass(COLOR_GREEN);
-	int n;
-	for (x = y, n = 0; x < delta - y; x++) {
-		for (z = y; z < delta - y; z++, n++) {
-			locateBlock((n%2)?glass1:glass2, sx + x, sy + y, sz + z);
-		}
-	}
+	drawForward(diamond, 10, true);
 
 }
